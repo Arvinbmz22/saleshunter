@@ -95,6 +95,8 @@ lib/
 types/
   lead.ts
   search.ts               SearchQuery, QueryStats, SearchState, SearchDiagnostics
+scripts/
+  local.mjs               اجرای محلی یک‌دستوری (ویندوز/لینوکس/مک)
 data/leads.json
 docs/SEARCH_ENGINE.md     معماری کامل موتور جستجو
 tests/
@@ -275,22 +277,48 @@ OpenAI-سازگار با `OPENAI_API_KEY` و اختیاری `OPENAI_BASE_URL` (�
 
 ## ۱۲. تست و اجرای لوکال
 
-Vitest: وضعیت‌های ایران، استقلال منبع، مثبت کاذب (فقط فارسی / خارجی فارسی‌زبان / امارات / فقط فالوور)، `.com` و `.ir`، تعارض مکان، رد کسب‌وکار/فروشگاه، رتبه در برابر فالوور، نرمال یوزرنیم/URL، اسکیمای AI، خانواده‌های کوئری، شکست بدون Provider.
+Vitest: وضعیت‌های ایران، استقلال منبع، مثبت کاذب (فقط فارسی / خارجی فارسی‌زبان / امارات / فقط فالوور)، `.com` و `.ir`، تعارض مکان، رد کسب‌وکار/فروشگاه، رتبه در برابر فالوور، نرمال یوزرنیم/URL، اسکیمای AI، خانواده‌های کوئری، شکست بدون Provider، موتور جستجو (نرمال‌سازی، خانواده‌ها، تنوع، دورها، تطبیق، شرط توقف، خطای Provider، عدم جعل) و یکپارچهٔ پایپلاین.
 
 آخرین اجرا در توسعه: **۶۹ تست پاس**
 (۵ تست قدیمی + ۳۴ تست موتور جستجو + ۴ تست یکپارچهٔ پایپلاین).
 
 ```bash
 npm install
-# .env.local: SEARCH_PROVIDER=mock   یا کلید واقعی
-npm run dev          # http://localhost:3500
 npm test
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-اسکریپت‌ها: `dev` و `start` روی پورت **3500**.
+### بالا آوردن محیط لوکال (یک دستور)
+
+`scripts/local.mjs` روی ویندوز/لینوکس/مک یکسان کار می‌کند و به‌طور پیش‌فرض
+از **mock برچسب‌خورده** استفاده می‌کند (نیازی به کلید ندارد):
+
+```bash
+npm run local          # http://localhost:3500  (mock)
+npm run local:lan      # روی 0.0.0.0 — قابل دسترسی از شبکه/موبایل
+npm run local:prod     # بعد از npm run build — اجرای production
+```
+
+متغیرهای قابل تنظیم هنگام اجرا:
+
+```
+PORT=3500
+HOST=127.0.0.1
+SEARCH_PROVIDER=mock | tavily | serper | brave
+AI_PROVIDER=mock | openai | off
+SEARCH_BUDGET=80
+```
+
+روی ویندوز هم می‌توان از `.env.local` استفاده کرد:
+
+```
+SEARCH_PROVIDER=mock
+AI_PROVIDER=mock
+```
+
+اسکریپت‌های `dev` و `start` روی پورت **3500** هستند.
 
 برای جستجوی واقعی در `.env.local`:
 

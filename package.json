@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "local": "node scripts/local.mjs",
+    "local:prod": "node scripts/local.mjs --prod",
+    "local:lan": "node scripts/local.mjs --lan"
   },
   "dependencies": {
     "next": "^15.5.2",
