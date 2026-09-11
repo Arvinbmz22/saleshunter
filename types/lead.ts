@@ -91,6 +91,8 @@ export type Lead = {
   verificationWarnings: string[];
 };
 
+import type { SearchDiagnostics } from "@/types/search";
+
 export type SearchRequest = {
   category: string;
   country: string;
@@ -106,11 +108,16 @@ export type SearchStats = {
   iranRejected: number;
   otherRejected: number;
   mockMode: boolean;
+  /** True when the search stopped before the planned queries were all run. */
+  partialSearch?: boolean;
+  /** Observability data from the discovery engine. */
+  search?: SearchDiagnostics;
 };
 
 export type PipelineStage =
   | "generate_queries"
   | "public_search"
+  | "expanding_search"
   | "extract_candidates"
   | "iran_verification"
   | "business_verification"

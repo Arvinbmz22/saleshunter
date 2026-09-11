@@ -1,4 +1,5 @@
 import { runPipeline } from "@/lib/pipeline/run";
+import { SearchProviderError } from "@/lib/search/provider";
 import { publicError, rateLimit, searchInputSchema } from "@/lib/security/validate";
 
 export const runtime = "nodejs";
@@ -45,9 +46,21 @@ export async function POST(request: Request) {
         );
         send("complete", result);
       } catch (error) {
-        send("error", {
-          error: publicError(error instanceof Error ? error.message : "Search failed"),
-        });
+        if (error instanceof SearchProviderError && error.code === "SEARCH_PROVIDER_UNAVAILABLE") {
+          // Never fake results when public search is unavailable.
+          send("error", {
+            error: "جستجوی عمومی در حال حاضر در دسترس نیست.",
+            code: "SEARCH_PROVIDER_UNAVAILABLE",
+          });
+        } else {
+          send("error", {
+            error: publicError(error instanceof Error ? error.message : "Search failed"),
+            code:
+              error instanceof SearchProviderError
+                ? error.code
+                : "SEARCH_FAILED",
+          });
+        }
       } finally {
         controller.close();
       }

@@ -3,7 +3,9 @@ import path from "path";
 import type { Lead } from "@/types/lead";
 import { isDuplicate } from "./duplicate";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.LEADS_DATA_DIR
+  ? path.resolve(process.env.LEADS_DATA_DIR)
+  : path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "leads.json");
 
 function withDefaults(raw: Partial<Lead>): Lead {

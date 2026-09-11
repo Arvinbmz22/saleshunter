@@ -1,55 +1,98 @@
 import type { SearchResultItem } from "@/types/lead";
-import type { SearchProvider } from "./provider";
+import type { QueryStats, SearchQuery } from "@/types/search";
+import { canonicalizeUrl } from "./normalize";
+import { SearchProviderError, type SearchProvider } from "./provider";
 
-export function dedupeSearchResults(items: SearchResultItem[]): SearchResultItem[] {
-  const seen = new Set<string>();
+export type QueryExecution = {
+  stats: QueryStats;
+  results: SearchResultItem[];
+};
+
+/** Drops malformed / unsupported URLs and de-duplicates by canonical URL key. */
+export function dedupeSearchResults(
+  items: SearchResultItem[],
+  seen?: Set<string>,
+): { results: SearchResultItem[]; duplicates: number } {
+  const local = seen ?? new Set<string>();
   const out: SearchResultItem[] = [];
+  let duplicates = 0;
   for (const item of items) {
-    const key = item.url.split("?")[0]?.replace(/\/+$/, "").toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
+    const canonical = canonicalizeUrl(item.url);
+    if (!canonical) continue;
+    if (local.has(canonical.key)) {
+      duplicates += 1;
+      continue;
+    }
+    local.add(canonical.key);
+    out.push({ ...item, url: canonical.url });
   }
-  return out;
+  return { results: out, duplicates };
 }
 
-export async function executeQueries(
+function statusOf(error: unknown): { status: QueryStats["status"]; message: string } {
+  if (error instanceof SearchProviderError) {
+    const map: Record<string, QueryStats["status"]> = {
+      PROVIDER_TIMEOUT: "timeout",
+      PROVIDER_RATE_LIMIT: "rate_limited",
+      PROVIDER_NETWORK: "error",
+      PROVIDER_HTTP: "error",
+      PROVIDER_MALFORMED: "error",
+      SEARCH_PROVIDER_UNAVAILABLE: "error",
+    };
+    return { status: map[error.code] ?? "error", message: error.message };
+  }
+  return { status: "error", message: error instanceof Error ? error.message : "unknown error" };
+}
+
+/**
+ * Executes a single query against the provider.
+ * A failing query never crashes the pipeline — it is recorded and the search
+ * continues with whatever the other queries returned (partial results).
+ */
+export async function executeQuery(
   provider: SearchProvider,
-  queries: string[],
-  opts: {
-    budget: number;
-    targetPool: number;
-    onQuery?: (query: string, used: number, total: number) => void | Promise<void>;
-  },
-): Promise<{ results: SearchResultItem[]; used: number }> {
-  const selected = queries.slice(0, opts.budget);
-  const concurrency = provider.isMock ? 6 : 3;
-  const collected: SearchResultItem[] = [];
-  let used = 0;
-  let errors = 0;
-  let lastError: unknown;
+  query: SearchQuery,
+  ctx: { seenResultKeys: Set<string>; maxResults: number; now: () => Date },
+): Promise<QueryExecution> {
+  const base: QueryStats = {
+    query: query.query,
+    family: query.family,
+    round: query.round,
+    executedAt: ctx.now().toISOString(),
+    status: "ok",
+    resultCount: 0,
+    newResults: 0,
+    duplicateResults: 0,
+    newCandidateCount: 0,
+    duplicateCandidateCount: 0,
+    historicalDuplicateCount: 0,
+    businessishCount: 0,
+    rejectedEarlyCount: 0,
+    estimatedValue: 0,
+  };
 
-  for (let i = 0; i < selected.length; i += concurrency) {
-    if (collected.length >= opts.targetPool) break;
-    const chunk = selected.slice(i, i + concurrency);
-    const settled = await Promise.allSettled(chunk.map((query) => provider.search(query)));
-    for (let j = 0; j < settled.length; j++) {
-      used += 1;
-      const query = chunk[j] ?? "";
-      const item = settled[j];
-      if (item?.status === "fulfilled") {
-        collected.push(...item.value);
-      } else {
-        errors += 1;
-        lastError = item?.status === "rejected" ? item.reason : lastError;
-      }
-      await opts.onQuery?.(query, used, selected.length);
+  let raw: SearchResultItem[] = [];
+  try {
+    raw = await provider.search(query.query);
+    if (!Array.isArray(raw)) {
+      throw new SearchProviderError("PROVIDER_MALFORMED", "Search provider returned no result list");
     }
+  } catch (error) {
+    const { status, message } = statusOf(error);
+    return { stats: { ...base, status, error: message }, results: [] };
   }
 
-  if (!collected.length && errors) {
-    throw lastError instanceof Error ? lastError : new Error("Search provider failed");
-  }
+  const capped = raw.slice(0, ctx.maxResults);
+  const { results, duplicates } = dedupeSearchResults(capped, ctx.seenResultKeys);
 
-  return { results: dedupeSearchResults(collected), used };
+  return {
+    stats: {
+      ...base,
+      status: results.length ? "ok" : "empty",
+      resultCount: raw.length,
+      newResults: results.length,
+      duplicateResults: duplicates,
+    },
+    results,
+  };
 }

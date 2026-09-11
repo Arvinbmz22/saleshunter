@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LeadCard } from "@/components/LeadCard";
 import { LeadTable } from "@/components/LeadTable";
+import { SearchDiagnosticsPanel } from "@/components/SearchDiagnostics";
 import { SearchForm } from "@/components/SearchForm";
 import { SearchStatus } from "@/components/SearchStatus";
 import type { Lead, ProgressEvent, SearchStats } from "@/types/lead";
@@ -16,7 +17,7 @@ export default function HomePage() {
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<SearchStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; code?: string } | null>(null);
   const [open, setOpen] = useState<Lead | null>(null);
 
   async function start() {
@@ -52,17 +53,20 @@ export default function HomePage() {
             leads?: Lead[];
             stats?: SearchStats;
             error?: string;
+            code?: string;
           };
           if (event === "progress") setEvents((prev) => [...prev, data]);
           if (event === "complete") {
             setLeads(data.leads ?? []);
             setStats(data.stats ?? null);
           }
-          if (event === "error") setError(data.error ?? "Search failed");
+          if (event === "error") {
+            setError({ message: data.error ?? "Search failed", code: data.code });
+          }
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      setError({ message: e instanceof Error ? e.message : "Search failed" });
     } finally {
       setRunning(false);
     }
@@ -90,7 +94,17 @@ export default function HomePage() {
         onSubmit={start}
       />
       <SearchStatus running={running} events={events} />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <div>
+          <p className="error">{error.message}</p>
+          {error.code === "SEARCH_PROVIDER_UNAVAILABLE" && (
+            <p className="sub">
+              هیچ لید ساختگی ساخته نشد. برای جستجوی واقعی باید یک فراهم‌کنندهٔ جستجو (
+              <code>TAVILY_API_KEY</code>، <code>SERPER_API_KEY</code> یا <code>BRAVE_API_KEY</code>) تنظیم شود.
+            </p>
+          )}
+        </div>
+      )}
       {stats && (
         <div className="stats">
           <div className="stat">
@@ -111,6 +125,7 @@ export default function HomePage() {
           </div>
         </div>
       )}
+      {stats?.search && <SearchDiagnosticsPanel diagnostics={stats.search} />}
       <LeadTable leads={leads} onOpen={setOpen} />
       {open && <LeadCard lead={open} onClose={() => setOpen(null)} />}
     </main>

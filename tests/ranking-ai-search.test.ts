@@ -4,7 +4,7 @@ import { normalizeInstagramUrl, normalizeUsername } from "@/lib/leads/normalize"
 import { rankLeads } from "@/lib/scoring/ranking";
 import { scoreLead, tierOf } from "@/lib/scoring/score";
 import { parseAIResponse } from "@/lib/ai/provider";
-import { adaptiveQueries, generateSearchQueries } from "@/lib/search/queries";
+import { adaptiveQueries, generateSearchQueries } from "@/lib/search/queryPlan";
 import type { Lead } from "@/types/lead";
 
 function baseLead(over: Partial<Lead>): Lead {
