@@ -1,118 +1,70 @@
 "use client";
+/* eslint-disable react/no-unescaped-entities */
 
-import { useState } from "react";
-import { LeadCard } from "@/components/LeadCard";
-import { LeadTable } from "@/components/LeadTable";
-import { SearchForm } from "@/components/SearchForm";
-import { SearchStatus } from "@/components/SearchStatus";
-import type { Lead, ProgressEvent, SearchStats } from "@/types/lead";
+import { useEffect, useMemo, useState } from "react";
+
+const A = "https://youtu.be/7DRO4rEIHDk";
+const B = "https://youtu.be/xsVTqzratPs";
+
+function Time({ children, video = A, seconds }: { children: React.ReactNode; video?: string; seconds: number }) {
+  return <a className="timestamp" href={`${video}?t=${seconds}`} target="_blank" rel="noreferrer">▶ {children}</a>;
+}
+function Callout({ type = "note", title, children }: { type?: string; title: string; children: React.ReactNode }) {
+  return <aside className={`callout ${type}`}><strong>{title}</strong><div>{children}</div></aside>;
+}
+function Section({ id, number, title, children }: { id: string; number: string; title: string; children: React.ReactNode }) {
+  return <section id={id} className="chapter"><div className="section-kicker">CHAPTER {number}</div><h2>{title}</h2>{children}</section>;
+}
 
 export default function HomePage() {
-  const [category, setCategory] = useState("لوازم آرایشی");
-  const [country, setCountry] = useState("ایران");
-  const [city, setCity] = useState("تهران");
-  const [limit, setLimit] = useState(20);
-  const [running, setRunning] = useState(false);
-  const [events, setEvents] = useState<ProgressEvent[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [stats, setStats] = useState<SearchStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<Lead | null>(null);
-
-  async function start() {
-    setRunning(true);
-    setEvents([]);
-    setError(null);
-    setStats(null);
-    setLeads([]);
-    try {
-      const response = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, country, city, limit }),
-      });
-      if (!response.ok || !response.body) {
-        const body = await response.json().catch(() => ({ error: "Request failed" }));
-        throw new Error(body.error ?? "Request failed");
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const chunks = buffer.split("\n\n");
-        buffer = chunks.pop() ?? "";
-        for (const chunk of chunks) {
-          const event = chunk.match(/^event: (.+)$/m)?.[1];
-          const dataLine = chunk.match(/^data: (.+)$/m)?.[1];
-          if (!event || !dataLine) continue;
-          const data = JSON.parse(dataLine) as ProgressEvent & {
-            leads?: Lead[];
-            stats?: SearchStats;
-            error?: string;
-          };
-          if (event === "progress") setEvents((prev) => [...prev, data]);
-          if (event === "complete") {
-            setLeads(data.leads ?? []);
-            setStats(data.stats ?? null);
-          }
-          if (event === "error") setError(data.error ?? "Search failed");
-        }
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
-    } finally {
-      setRunning(false);
-    }
+  const [dark, setDark] = useState(true);
+  const [query, setQuery] = useState("");
+  useEffect(() => { document.documentElement.dataset.theme = dark ? "dark" : "light"; }, [dark]);
+  const count = useMemo(() => query ? document.querySelectorAll(".guide mark").length : 0, [query]);
+  function search(value: string) {
+    setQuery(value);
+    document.querySelectorAll(".guide mark").forEach((m) => m.replaceWith(document.createTextNode(m.textContent || "")));
+    if (!value.trim()) return;
+    const walker = document.createTreeWalker(document.querySelector(".guide")!, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = []; let node;
+    while (node = walker.nextNode()) { if (!(node.parentElement?.closest("script,style,mark,.searchbar"))) nodes.push(node as Text); }
+    nodes.forEach((text) => { const escaped = value.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"); const re = new RegExp(escaped, "ig"); if (re.test(text.data)) { const frag = document.createDocumentFragment(); let last=0; text.data.replace(re, (match, offset) => { frag.append(text.data.slice(last, offset), Object.assign(document.createElement("mark"), {textContent: match})); last=offset+match.length; return match; }); frag.append(text.data.slice(last)); text.replaceWith(frag); } });
   }
+  return <main className="guide">
+    <header className="hero" id="top">
+      <div className="eyebrow">FIELD GUIDE / SEO • GEO • TECHNICAL SEARCH</div>
+      <div className="hero-grid"><div><h1>Full-Stack SEO &amp;<br /><span>AI Search</span></h1><p className="lede">A complete study guide for building search visibility—from crawling and keyword strategy to topical authority, link equity, and generative engine optimization.</p><div className="hero-actions"><a className="primary" href="#overview">Start studying ↓</a><a className="ghost" href={A} target="_blank" rel="noreferrer">Watch source videos ↗</a></div></div><div className="hero-stat"><span>02</span><small>COURSES<br />SYNTHESIZED</small><hr/><span>12</span><small>CORE<br />CHAPTERS</small></div></div>
+      <div className="meta-strip"><span>Updated for 2026</span><span>Beginner → practitioner</span><span>Search Everywhere Optimization</span></div>
+    </header>
+    <div className="toolbar"><div className="searchbar"><span>⌕</span><input aria-label="Search study guide" placeholder="Search this guide…" value={query} onChange={e=>search(e.target.value)} />{query && <small>{count} match{count===1?"":"es"}</small>}</div><button className="theme" onClick={()=>setDark(!dark)} aria-label="Toggle color theme">{dark ? "☼ Light" : "◐ Dark"}</button></div>
+    <nav className="toc" aria-label="Table of contents"><div className="toc-title">ON THIS PAGE</div><a href="#overview">00 · Course overview</a><a href="#video-a">01 · Modern SEO &amp; AI search</a><a href="#video-b">02 · Foundational SEO mechanics</a><a href="#reference">03 · Reference glossary</a><a href="#checklists">04 · Execution checklists</a><a href="#cases">05 · Applied case studies</a><a href="#action">06 · 30-day action plan</a></nav>
+    <div className="layout"><article>
+      <section id="overview" className="chapter overview"><div className="section-kicker">00 / ORIENTATION</div><h2>Course overview</h2><p>This guide is a faithful synthesis of two courses. Video A supplies the modern full-funnel and AI-search perspective; Video B supplies the foundational mechanics and execution systems. Together they form a practical path from search intent to measurable business outcomes.</p><div className="video-grid"><article className="video-card"><div className="video-label">VIDEO A · MODERN SEARCH</div><h3>The Complete SEO &amp; AI SEO Course for 2026</h3><p>Surfer Academy · 50:46</p><a href={A} target="_blank" rel="noreferrer">Open on YouTube ↗</a><ul><li>Traditional SEO and Generative Engine Optimization (GEO)</li><li>AI Overviews, ChatGPT, Perplexity and Gemini</li><li>Full-funnel content and visibility workflow</li></ul></article><article className="video-card"><div className="video-label">VIDEO B · FOUNDATIONS</div><h3>Complete SEO Course for Beginners: Learn to Rank #1 in Google</h3><p>Ahrefs · Sam Oh · 1:57:03</p><a href={B} target="_blank" rel="noreferrer">Open on YouTube ↗</a><ul><li>Keyword research and competitive intelligence</li><li>On-page SEO, links and technical architecture</li><li>Auditing and repeatable execution systems</li></ul></article></div><Callout type="key" title="The central thesis">SEO is not competing with AI search. Traditional SEO is the foundational layer on which AI search is constructed—and both must serve business objectives, not vanity traffic.</Callout></section>
 
-  return (
-    <main className="wrap">
-      <h1>AdminExt AI Lead Finder</h1>
-      <p className="sub">کشف لید B2B از منابع عمومی — کیفیت مهم‌تر از تعداد است. ورود به اینستاگرام یا ارسال پیام خودکار وجود ندارد.</p>
-      {stats?.mockMode && (
-        <div className="banner">حالت MOCK فعال است. نتایج نمونه برچسب‌خورده‌اند و جستجوی واقعی انجام نشده.</div>
-      )}
-      <SearchForm
-        category={category}
-        country={country}
-        city={city}
-        limit={limit}
-        running={running}
-        onChange={(patch) => {
-          if (patch.category !== undefined) setCategory(patch.category);
-          if (patch.country !== undefined) setCountry(patch.country);
-          if (patch.city !== undefined) setCity(patch.city);
-          if (patch.limit !== undefined) setLimit(patch.limit);
-        }}
-        onSubmit={start}
-      />
-      <SearchStatus running={running} events={events} />
-      {error && <p className="error">{error}</p>}
-      {stats && (
-        <div className="stats">
-          <div className="stat">
-            <span>لید جدید</span>
-            <b>{stats.accepted}</b>
-          </div>
-          <div className="stat">
-            <span>تکراری حذف‌شده</span>
-            <b>{stats.duplicatesRemoved}</b>
-          </div>
-          <div className="stat">
-            <span>نامرتبط حذف‌شده</span>
-            <b>{stats.irrelevantRejected}</b>
-          </div>
-          <div className="stat">
-            <span>رد به‌خاطر عدم احراز ایران</span>
-            <b>{stats.iranRejected}</b>
-          </div>
-        </div>
-      )}
-      <LeadTable leads={leads} onOpen={setOpen} />
-      {open && <LeadCard lead={open} onClose={() => setOpen(null)} />}
-    </main>
-  );
+      <Section id="video-a" number="01" title="Modern SEO & AI search · Video A"><p className="section-intro">Surfer Academy’s course connects the classic crawl–index–rank model to the emerging world of conversational search.</p>
+        <h3><Time seconds={0}>01 · What SEO actually is &amp; the reality of AI search</Time></h3><h4>The “SEO is dead” myth</h4><p>AI chatbots, AI search engines and Google AI Overviews have led commentators to declare SEO dead. Yet Google processes billions of searches per day, search volume grew 20% in the last year, and Google sends 190 times more web traffic to websites than ChatGPT does. The discovery ecosystem is bifurcating into traditional search engines and AI-powered assistants—not disappearing.</p><Callout type="definition" title="Search Everywhere Optimization">Ashley Liddell’s modern framework: optimize brand visibility wherever potential customers search for solutions.</Callout><h4>The three-step search engine pipeline</h4><div className="pipeline"><div><b>01 · CRAWL</b><span>Bots follow hyperlinks to discover content.</span></div><div><b>02 · INDEX</b><span>Discovered content is parsed into the search engine’s database. If a page is not indexed, it cannot appear.</span></div><div><b>03 · RANK</b><span>An algorithm scores indexed pages for relevance, trustworthiness and utility.</span></div></div><p>AI search relies heavily on this infrastructure: ChatGPT uses Bing’s index when browsing the live web; Perplexity operates its own crawler but relies heavily on Bing’s index; even independent indexes crawl and prioritize pages that rank well traditionally.</p><h4>Business intent over vanity metrics</h4><p>SEO should produce revenue, leads and paying clients. Social/display advertising is <em>push</em> marketing—an interruption while people do something else. Search is <em>pull</em> marketing: a query such as “best proposal software for agencies” expresses active purchase intent.</p><p className="label">Anchor case studies introduced</p><div className="chips"><span>PandaDoc · B2B SaaS</span><span>Counter Culture Coffee · E-commerce</span><span>Huntress · Cybersecurity</span></div>
+        <h3><Time seconds={332}>02 · Search intent &amp; zero-click realities</Time></h3><h4>The four classifications of intent</h4><div className="intent-grid"><div><b>Informational</b><span>Learn something: “how to train your puppy.”</span></div><div><b>Commercial investigation</b><span>Evaluate options: “best dog training classes.”</span></div><div><b>Transactional</b><span>Act or buy: “dog training class near me sign up.”</span></div><div><b>Navigational / branded</b><span>Reach a known destination: “PetSmart dog training.”</span></div></div><p>The golden rule is to search the target keyword yourself: Google’s top 10 results reveal what users want. Head terms have volume but ambiguous intent (“coffee,” 650,000 US searches/month); long-tail terms have clearer intent and lower competition (“best dark roast coffee beans for espresso”). New sites should build authority with long-tail queries before attacking head terms.</p><Callout type="warning" title="Zero-click reality">AI Overviews and direct SERP answers can satisfy a query without a click. Surface-level content is easy to summarize. Counter this with original perspective, proprietary experience, downloadable tools, or deep procedures that cannot fit in a three-sentence snippet.</Callout>
+        <h3><Time seconds={600}>03 · Finding and prioritizing keywords</Time></h3><h4>The keyword sweet spot</h4><table><thead><tr><th>Criterion</th><th>Question to ask</th></tr></thead><tbody><tr><td>Demand</td><td>Is there measurable monthly search volume?</td></tr><tr><td>Fit</td><td>Does this align with the product funnel and audience?</td></tr><tr><td>Intent</td><td>Can the content legitimately deliver what the SERP expects?</td></tr><tr><td>Keyword Difficulty</td><td>Can this site compete with its current authority and backlinks?</td></tr></tbody></table><h4>Funnel mechanics in practice</h4><Callout type="example" title="PandaDoc: turning TOFU into pipeline">“Contract template” (~300,000 searches/month) leads to a free template download → email capture → nurture sequence → trial or product signup.</Callout><Callout type="example" title="Counter Culture Coffee: educate, then convert">An educational “pour over coffee” tutorial (34,000/month) supports “pour over coffee ratio” (10,000/month) and “cold brew ratio” (6,800/month), capturing niche intent before product conversion.</Callout><h4>Ideate → validate → cluster</h4><ul><li><b>Ideation:</b> Google Search Console, Autocomplete, People Also Ask, subreddit language, LLM prompts using sitemaps or buyer questions, and Keyword Surfer’s volume/CPC.</li><li><b>Validation:</b> assess volume, difficulty, business fit and intent; use custom API pipelines or tools such as Surfer.</li><li><b>Clustering:</b> group semantically identical or complementary keywords under one URL to prevent cannibalization.</li></ul><Callout type="key" title="Prioritization workflow">Money pages first → build one complete cluster → repeat cluster by cluster. Google evaluates pages in domain context: a complete journey (for example, ransomware definition, signs, incident checklist and EDR product) establishes topical expertise.</Callout>
+        <h3><Time seconds={1425}>04 · Creating content that ranks</Time></h3><div className="steps"><div><b>Research</b><span>Analyze the top five pages: table-stakes topics, omissions, weak points, word-count/depth benchmarks, angles and missing media.</span></div><div><b>Structure</b><span>Create a comprehensive, intent-matching outline before drafting.</span></div><div><b>Write</b><span>Use AI for scaffolding and definitions, then add first-party experience, contrarian opinions, original data, expert quotes and verifiable case studies.</span></div><div><b>Optimize</b><span>Use NLP benchmarks such as Surfer Content Score while protecting usefulness and authenticity.</span></div></div><Callout type="warning" title="The 96.5% problem">An Ahrefs study of 14 billion pages found over 96% receive zero Google traffic. Matching the average is not enough; content must be markedly more useful than page one.</Callout>
+        <h3><Time seconds={1809}>05 · On-page SEO checklist</Time></h3><ul className="checklist"><li><b>Title tag:</b> primary keyword near the front; under 60 characters. Examples: “Ransomware Recovery Guide for Businesses”; “Endpoint Detection and Response Built for Every Business.”</li><li><b>H1/H2/H3:</b> exactly one H1, closely reflecting the title; logical hierarchy beneath it.</li><li><b>URL:</b> clean, human-readable and keyword-focused, e.g. <code>/topic/ransomware-recovery-guide</code>.</li><li><b>Meta description:</b> 150–160 characters, action-oriented for CTR.</li><li><b>Internal links:</b> contextual links from educational and lateral pages to money pages.</li><li><b>Images:</b> descriptive names such as <code>malicious-process-dashboard.webp</code>, useful alt text and WebP compression.</li></ul>
+        <h3><Time seconds={2118}>06 · Link building strategies</Time></h3><p>A backlink is an external vote of credibility; high-authority editorial links outperform low-quality directories.</p><div className="cards three"><div><b>Be the definitive source</b><p>Publish original telemetry, benchmarks or exhaustive guides. Huntress research is cited by Google Cloud Threat Intel and Wikipedia; Counter Culture guides by WikiHow and Breville.</p></div><div><b>Answer journalist queries</b><p>Use Source of Sources (SOS) or Featured.com. Spend 15 minutes daily on concise expert quotes; a 1–2% conversion rate is a normal numbers game.</p></div><div><b>Build linkable assets</b><p>Use AI coding assistants such as Claude Code or Codex to make calculators, templates and lightweight browser utilities. A coffee-to-water ratio calculator targeted a KD of 8.</p></div></div>
+        <h3><Time seconds={2378}>07 · Technical SEO &amp; local fundamentals</Time></h3><p>WordPress, Webflow and Shopify handle much of the base architecture for small and medium sites. Use Screaming Frog (free up to 500 URLs) to find 404s, missing tags, redirect chains, orphan pages and uncompressed images. For local visibility, claim and complete Google Business Profile, solicit reviews consistently and respond to them to compete in the Map Pack.</p>
+        <h3><Time seconds={2490}>08 · AI search optimization</Time></h3><p>ChatGPT, Gemini, Perplexity, Claude and Grok synthesize web content into recommendations rather than link lists. GSC does not track visits from AI chat interfaces, and LLM platforms keep raw query data proprietary.</p><div className="steps"><div><b>Clear parsing structure</b><span>Direct answers, explicit subheadings and schema markup make content easier for LLM web parsers.</span></div><div><b>Dense topical clusters</b><span>Full-spectrum authority increases the chance an entity is treated as a trusted source.</span></div><div><b>Roundup placements</b><span>Assistants routinely parse “best of” aggregators when recommending options.</span></div><div><b>Mention gap analysis</b><span>Find queries where competitors appear but you do not; pursue the underlying cited sources.</span></div></div><Callout type="key" title="What to measure">Shift from unavailable referral data to AI mention tracking: monitor whether and how your brand appears, plus competitor citation share.</Callout>
+      </Section>
+
+      <Section id="video-b" number="02" title="Foundational SEO mechanics · Video B"><p className="section-intro">Ahrefs’ Sam Oh teaches SEO as disciplined execution of fundamentals that compound—not a collection of obscure tricks.</p>
+        <h3><Time seconds={0} video={B}>Module 0 · Fundamentals &amp; mechanics</Time></h3><p>SEO delivers free traffic with no marginal CPC, stable topic demand compared with fast-decaying social feeds or email spikes, and unmatched scale across more than 4 billion active Google users. Google uses seed URLs, follows links to crawl, catalogs hundreds of billions of pages into its index, then evaluates them.</p><div className="pillar-grid"><div><b>Backlinks</b><span>A direct correlation exists between unique referring domains and organic traffic.</span></div><div><b>Search intent</b><span>Pages must solve the underlying problem the searcher is trying to solve.</span></div><div><b>Depth &amp; context</b><span>Cover the expected subtopics; a driving guide needs mirrors, seatbelts, pedals and safety basics.</span></div></div>
+        <h3><Time seconds={474} video={B}>Module 1 · Keyword research &amp; competitive intelligence</Time></h3><p><b>Traffic Potential (TP)</b> can beat primary search volume: one page may rank for hundreds or thousands of long-tail variations, so its total potential traffic exceeds the target keyword’s volume.</p><table><thead><tr><th>Business potential</th><th>Meaning</th></tr></thead><tbody><tr><td>3</td><td>Product is indispensable to the query.</td></tr><tr><td>2</td><td>Product helps solve the problem but is not required.</td></tr><tr><td>1</td><td>Loosely related; only a brief mention fits.</td></tr><tr><td>0</td><td>No product connection—vanity traffic.</td></tr></tbody></table><h4>The 3 C’s of search intent</h4><div className="cards three"><div><b>Content type</b><p>Blog post, e-commerce product, category/listing, landing page or video.</p></div><div><b>Content format</b><p>Step-by-step tutorial, list post, opinion, in-depth guide or comparison.</p></div><div><b>Content angle</b><p>The SERP hook: “for beginners,” “free,” “in 2026,” “fastest.”</p></div></div><p>Discover terms with competitor gap analysis in Keywords Explorer or Site Explorer. KD is based on unique referring domains to top-ranking pages. Also inspect DR versus UR, domain quality and topical authority, and whether results actually match intent: a low-authority page with perfect intent can beat an authoritative mismatch.</p>
+        <h3><Time seconds={2428} video={B}>Module 2 · On-page SEO mechanics</Time></h3><p>Optimize individual pages to rank and earn relevant traffic. Put the primary keyword early in the title with a compelling, non-clickbait hook; use one keyword-focused H1; keep the URL short; write a clear meta description (not a direct ranking factor, but important for CTR); cover the topic naturally without stuffing; and use descriptive image names, alt text and compression.</p>
+        <h3><Time seconds={3579} video={B}>Module 3 · Links &amp; outreach systems</Time></h3><p>A strong backlink combines referring-site/page authority, topical relevance, descriptive anchor text and editorial in-content placement. Standard dofollow links pass equity; <code>rel="nofollow"</code>, <code>rel="sponsored"</code> and <code>rel="ugc"</code> are generally hints and may not pass PageRank.</p><div className="cards three"><div><b>Linkable assets</b><p>Data studies, infographics, free utilities and definitive guides.</p></div><div><b>Broken links</b><p>Find authoritative 404s, make a superior replacement and suggest it to the site owner.</p></div><div><b>Unlinked mentions</b><p>Find pages mentioning your brand, product or research and politely request a link. Outreach should be targeted, personalized and value-first.</p></div></div>
+        <h3><Time seconds={6208} video={B}>Module 4 · Technical SEO &amp; auditing</Time></h3><div className="tech-list"><p><code>robots.txt</code> tells bots which directories they may crawl.</p><p><code>XML sitemap</code> lists canonical URLs you want discovered and indexed.</p><p><code>rel="canonical"</code> designates the primary URL among duplicates.</p><p>Logical, shallow architecture helps equity flow from homepage to subpages.</p><p>Page speed and Core Web Vitals improve experience through fast servers, caching and CDNs such as Cloudflare.</p></div><p>In Ahrefs Webmaster Tools or Site Audit, verify ownership by GSC or DNS, schedule weekly crawls with external-link tracking, monitor Health Score, then resolve Errors before Warnings. Common errors include active internal links to 404s, orphan pages, redirect chains/loops such as 301 → 301 → 200, duplicate descriptions, missing titles and missing alt attributes.</p>
+      </Section>
+
+      <Section id="reference" number="03" title="Consolidated reference glossary"><table className="glossary"><thead><tr><th>Concept</th><th>Definition</th></tr></thead><tbody><tr><td>SEO</td><td>Optimizing content and technical infrastructure for organic visibility in search engines and AI assistants.</td></tr><tr><td>GEO / Search Everywhere Optimization</td><td>Extending SEO principles to AI assistants, chatbots and vertical search platforms.</td></tr><tr><td>Crawling · indexing · ranking</td><td>Discovering URLs, cataloging content, then ordering it by relevance and authority.</td></tr><tr><td>Search intent</td><td>The underlying goal: informational, commercial investigation, transactional or navigational.</td></tr><tr><td>Traffic Potential</td><td>Estimated total monthly traffic from all ranking keywords.</td></tr><tr><td>Topical authority &amp; clusters</td><td>Comprehensive coverage across related subtopics and funnel stages, joined by internal links.</td></tr><tr><td>Money page</td><td>High-intent product, pricing, category or service page that converts visitors.</td></tr><tr><td>Zero-click search</td><td>A search satisfied on the SERP by an Overview or direct answer.</td></tr><tr><td>Link equity / referring domains</td><td>Authority passed via hyperlinks; unique, reputable domains correlate with stronger rankings.</td></tr><tr><td>Linkable asset</td><td>Research, utility or guide deliberately designed to attract editorial backlinks.</td></tr><tr><td>Core Web Vitals</td><td>Metrics for load performance, visual stability and user experience on desktop and mobile.</td></tr><tr><td>Orphan page</td><td>A published page with no incoming internal links, hindering discovery and indexation.</td></tr></tbody></table></Section>
+      <Section id="checklists" number="04" title="Execution checklists"><h3>On-page optimization</h3><ul className="checklist"><li>□ Title: keyword near front; under 60 characters.</li><li>□ Exactly one H1; logical H2/H3 hierarchy.</li><li>□ Concise keyword-focused URL slug.</li><li>□ 150–160 character action-oriented meta description.</li><li>□ Descriptive image filename, alt text and WebP compression.</li><li>□ 2–5 contextual internal links to cluster pages and money pages.</li></ul><h3>Technical diagnostic</h3><ul className="checklist"><li>□ Confirm <code>robots.txt</code> does not block critical directories.</li><li>□ Active XML sitemap submitted to GSC, with no 404/redirected URLs.</li><li>□ Correct canonical tags for parameter and duplicate URLs.</li><li>□ Crawl with Screaming Frog (up to 500 pages free) or Ahrefs Webmaster Tools.</li><li>□ Fix broken links, redirect loops and orphan pages.</li><li>□ Test Core Web Vitals and optimize CDN, caching and assets.</li></ul><Callout type="warning" title="Do not overcomplicate early">Modern CMS platforms handle much of the base technical architecture. Start with intent, quality content and internal links before getting lost in minor technical optimizations.</Callout></Section>
+      <Section id="cases" number="05" title="Applied case studies"><div className="case"><h3>01 · PandaDoc</h3><p>For a B2B SaaS document-workflow product, “contract template” (~300,000/month) is top-of-funnel. A free download captures email, then nurturing leads to a trial or paid subscription. The site builds topical depth across legal templates, e-signature tools and sales-pipeline guides.</p></div><div className="case"><h3>02 · Counter Culture Coffee</h3><p>An authoritative brewing tutorial targets “pour over coffee” (34,000/month), while “pour over coffee ratio” (10,000) and “cold brew ratio” (6,800) capture specificity. Guides earned links from WikiHow, Gear Patrol and Breville; that authority flows toward subscription and product pages.</p></div><div className="case"><h3>03 · Huntress</h3><p>Educational content uses a clear hierarchy: H1 “Ransomware Recovery Guide for Businesses,” H2 “First Steps After an Attack,” H3 “Why Recovery Plans Are Non-Negotiable,” at <code>/topic/ransomware-recovery-guide</code>. The commercial asset uses “Endpoint Detection and Response Built for Every Business” at <code>/platform/managed-edr</code>. Original threat research earns citations from tech publications, Wikipedia and Google Cloud’s threat-intelligence team.</p></div></Section>
+      <Section id="action" number="06" title="30-day implementation plan"><div className="timeline"><div><b>WEEK 1 · FOUNDATION</b><span>Set up GSC; research 10–15 primary keywords with the sweet-spot framework; perform the 30-second intent audit; map money pages.</span></div><div><b>WEEK 2 · CORE MONEY PAGE</b><span>Publish or overhaul the most important commercial landing page with strict on-page optimization.</span></div><div><b>WEEK 3 · FIRST CLUSTER</b><span>Launch supporting mid- and top-funnel content; add contextual internal links to the money page.</span></div><div><b>WEEK 4 · PROMOTE &amp; MONITOR</b><span>Pitch journalist queries for 15 minutes/day; benchmark AI visibility; review GSC impressions and rising rank before clicks arrive.</span></div></div><Callout type="takeaway" title="Student action items">Audit intent before writing. Prioritize bottom-of-funnel pages. Build one cluster end-to-end. Add experience, screenshots, proprietary data or expert quotes. Establish sustainable outreach. Schedule weekly technical audits.</Callout><Callout type="warning" title="Pitfalls to avoid">Do not publish generic AI slop; ignore money pages; choose by volume alone; scatter across unrelated topics; mismatch content format with the SERP; or expect low-quality directory links to equal a relevant editorial citation.</Callout></Section>
+      <footer><p><b>Study principle:</b> quality, intent alignment, topical depth and useful connections compound.</p><a href="#top">↑ Back to top</a></footer>
+    </article></div>
+  </main>;
 }
