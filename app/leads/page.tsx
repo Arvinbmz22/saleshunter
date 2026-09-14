@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { LeadCard } from "@/components/LeadCard";
 import { LeadTable } from "@/components/LeadTable";
 import type { Lead } from "@/types/lead";
@@ -29,9 +30,9 @@ export default function PreviousLeadsPage() {
         این‌ها لیدهایی هستند که قبلاً پیدا و ذخیره شده‌اند. در جستجوی جدید به‌خاطر تکراری بودن دوباره نشان داده نمی‌شوند.
       </p>
       <div className="actions" style={{ marginTop: 0, marginBottom: 18 }}>
-        <a href="/" className="btn-secondary">
+        <Link href="/" className="btn-secondary">
           بازگشت به جستجو
-        </a>
+        </Link>
       </div>
       {loading && <p className="sub">در حال بارگذاری...</p>}
       {error && <p className="error">{error}</p>}
